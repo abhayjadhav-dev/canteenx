@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "CanteenX Student",
+    "slug": "canteenx-student",
+    "version": "1.0.0",
+    "sdkVersion": "52.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#f97415"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.canteenx.student"
+    },
+    "android": {
+      "package": "com.canteenx.student",
+      "adaptiveIcon": {
+        "backgroundColor": "#f97415"
+      }
+    },
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-asset",
+      "expo-font"
+    ]
+  }
+}

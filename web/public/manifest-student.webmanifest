@@ -1,0 +1,17 @@
+{
+  "name": "CanteenX Student",
+  "short_name": "CanteenX",
+  "description": "Order food from your campus canteen",
+  "start_url": "/student",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#faf7f2",
+  "theme_color": "#f97415",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

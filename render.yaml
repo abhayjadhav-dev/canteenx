@@ -1,0 +1,31 @@
+# render.yaml - Render Blueprint for CanteenX
+# Deploy: Connect your GitHub repo → Render will auto-detect this file
+
+services:
+  - type: web
+    name: canteenx
+    runtime: node
+    region: oregon
+    plan: free
+    healthCheckPath: /health
+    buildCommand: npm run render:build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: PORT
+        value: 4000
+    disk:
+      name: uploads
+      mountPath: /opt/render/project/src/backend/uploads
+      sizeGB: 1

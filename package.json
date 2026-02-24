@@ -1,0 +1,16 @@
+{
+  "name": "canteenx",
+  "version": "1.0.0",
+  "description": "CanteenX - Smart Campus Canteen Ordering System",
+  "scripts": {
+    "install:backend": "cd backend && npm install",
+    "install:web": "cd web && npm install",
+    "install:all": "npm run install:backend && npm run install:web",
+    "build:web": "cd web && npm run build",
+    "start": "cd backend && npm start",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:web": "cd web && npm run dev",
+    "seed": "cd backend && npm run seed",
+    "render:build": "npm run install:all && npm run build:web"
+  }
+}
