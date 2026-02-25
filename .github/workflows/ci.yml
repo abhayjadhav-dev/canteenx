@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Install backend and web dependencies
+        run: npm run install:all
+
+      - name: Build web app
+        run: npm run build:web
+
+      - name: Start backend server
+        if: ${{ secrets.SUPABASE_URL != '' }}
+        env:
+          PORT: 4000
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          cd backend && node src/server.js &
+          sleep 5
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            curl -sf http://localhost:4000/api/health && break
+            sleep 2
+          done
+
+      - name: Run API verification
+        if: ${{ secrets.SUPABASE_URL != '' }}
+        env:
+          API_URL: http://localhost:4000/api
+        run: npm run verify

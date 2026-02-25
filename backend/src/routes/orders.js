@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
 const { toCamel, toSnake, transformOrder } = require('../lib/transform');
+const { requireAuth, requireRole } = require('../auth');
 
-// GET /api/orders - List orders (filterable)
-router.get('/', async (req, res) => {
+// GET /api/orders - List orders (admins/staff see all, students see own)
+router.get('/', requireAuth, async (req, res) => {
   try {
     const { status, user, limit = 50, page = 1 } = req.query;
 
@@ -17,6 +18,11 @@ router.get('/', async (req, res) => {
       query = query.in('status', statuses);
     }
     if (user) query = query.eq('user_id', user);
+
+    // Students/customers only see their own orders
+    if (req.user.role === 'student') {
+      query = query.eq('user_id', req.user.id);
+    }
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
     query = query.order('created_at', { ascending: false }).range(offset, offset + parseInt(limit) - 1);
@@ -48,8 +54,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/orders/stats - Dashboard KPIs
-router.get('/stats', async (req, res) => {
+// GET /api/orders/stats - Dashboard KPIs (admin/staff only)
+router.get('/stats', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -104,8 +110,8 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// GET /api/orders/:id - Single order
-router.get('/:id', async (req, res) => {
+// GET /api/orders/:id - Single order (students can only access their own)
+router.get('/:id', requireAuth, async (req, res) => {
   try {
     const { data: order, error } = await supabase
       .from('orders')
@@ -115,6 +121,10 @@ router.get('/:id', async (req, res) => {
 
     if (error) throw error;
     if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+    if (req.user.role === 'student' && order.user_id && order.user_id !== req.user.id) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
 
     const { data: items } = await supabase
       .from('order_items')
@@ -127,10 +137,10 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/orders - Create new order
-router.post('/', async (req, res) => {
+// POST /api/orders - Create new order (authenticated customers)
+router.post('/', requireAuth, async (req, res) => {
   try {
-    const { items, user, customerName, paymentMethod, pickupTime, orderType, specialInstructions } = req.body;
+    const { items, customerName, paymentMethod, pickupTime, orderType, specialInstructions } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, error: 'Order must contain at least one item' });
     }
@@ -196,16 +206,53 @@ router.post('/', async (req, res) => {
     const tax = Math.round(subtotal * 0.05 * 100) / 100;
     const total = subtotal + tax;
 
+    // Determine initial payment status and handle wallet payments
+    let paymentStatus = 'pending';
+
+    if (paymentMethod === 'wallet') {
+      const { data: profile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('wallet_balance')
+        .eq('id', req.user.id)
+        .single();
+
+      if (profileErr || !profile) {
+        return res.status(400).json({ success: false, error: 'Unable to verify wallet balance' });
+      }
+
+      const currentBalance = parseFloat(profile.wallet_balance) || 0;
+      if (currentBalance < total) {
+        return res.status(400).json({ success: false, error: 'Insufficient wallet balance' });
+      }
+
+      const newBalance = currentBalance - total;
+      const { error: updateErr } = await supabase
+        .from('profiles')
+        .update({ wallet_balance: newBalance, updated_at: new Date().toISOString() })
+        .eq('id', req.user.id);
+      if (updateErr) {
+        return res.status(400).json({ success: false, error: 'Failed to deduct wallet balance' });
+      }
+
+      paymentStatus = 'paid';
+    } else if (paymentMethod === 'cash') {
+      paymentStatus = 'pending';
+    } else {
+      // upi / card: external gateway should confirm later
+      paymentStatus = 'pending';
+    }
+
     // Create the order (trigger will auto-generate order_number + token_number)
     const { data: order, error: orderErr } = await supabase
       .from('orders')
       .insert({
-        user_id: user || null,
+        user_id: req.user.id || null,
         customer_name: customerName || 'Student',
         subtotal,
         tax,
         total,
         payment_method: paymentMethod || 'wallet',
+        payment_status: paymentStatus,
         pickup_time: pickupTime || '',
         order_type: orderType || 'takeaway',
         special_instructions: specialInstructions || '',
@@ -231,8 +278,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PATCH /api/orders/:id/status - Update order status
-router.patch('/:id/status', async (req, res) => {
+// PATCH /api/orders/:id/status - Update order status (admin/staff only)
+router.patch('/:id/status', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     const { status, note } = req.body;
     const validStatuses = ['placed', 'confirmed', 'preparing', 'ready', 'collected', 'cancelled'];

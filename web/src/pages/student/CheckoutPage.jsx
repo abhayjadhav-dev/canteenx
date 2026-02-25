@@ -27,8 +27,18 @@ export default function CheckoutPage() {
   const [instructions, setInstructions] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const total = getTotal();
+  const walletInsufficient = paymentMethod === 'wallet' && (user?.walletBalance ?? 0) < total;
+  const canPlaceOrder = !submitting && !walletInsufficient;
+
   const handlePlaceOrder = async () => {
     if (items.length === 0) return;
+    if (!user) {
+      toast.getState().error('Please sign in to place an order');
+      navigate('/auth');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const order = await placeOrder({
@@ -38,7 +48,6 @@ export default function CheckoutPage() {
           addons: i.addons,
           specialInstructions: i.specialInstructions,
         })),
-        user: user?._id,
         customerName: user?.name || 'Student',
         paymentMethod,
         orderType,
@@ -114,20 +123,26 @@ export default function CheckoutPage() {
           <h3 className="card-section-title">
             Payment Method
             {paymentMethod === 'wallet' && user?.walletBalance !== undefined && (
-              <span className="wallet-hint">Balance: ₹{user.walletBalance}</span>
+              <span className={`wallet-hint ${walletInsufficient ? 'insufficient' : ''}`}>
+                Balance: ₹{user.walletBalance}
+                {walletInsufficient && ' (insufficient)'}
+              </span>
             )}
           </h3>
           <div className="payment-options">
-            {PAYMENT_METHODS.map((pm) => (
+            {PAYMENT_METHODS.map((pm) => {
+              const isWalletInsufficient = pm.id === 'wallet' && (user?.walletBalance ?? 0) < total;
+              return (
               <div
                 key={pm.id}
-                className={`payment-option ${paymentMethod === pm.id ? 'selected' : ''}`}
-                onClick={() => setPaymentMethod(pm.id)}
+                className={`payment-option ${paymentMethod === pm.id ? 'selected' : ''} ${isWalletInsufficient ? 'disabled' : ''}`}
+                onClick={() => !isWalletInsufficient && setPaymentMethod(pm.id)}
+                title={isWalletInsufficient ? 'Insufficient balance – top up in Profile' : ''}
               >
                 <div className="payment-option-radio" />
                 <span className="payment-option-label">{pm.icon} {pm.label}</span>
               </div>
-            ))}
+            );})}
           </div>
         </div>
       </div>
@@ -151,7 +166,7 @@ export default function CheckoutPage() {
         <button
           className="btn btn-primary btn-block btn-place-order"
           onClick={handlePlaceOrder}
-          disabled={submitting}
+          disabled={!canPlaceOrder}
         >
           {submitting ? 'Placing Order...' : <><ShieldCheck size={18} /> Place Order · ₹{getTotal().toFixed(2)}</>}
         </button>

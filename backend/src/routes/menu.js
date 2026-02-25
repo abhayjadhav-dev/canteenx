@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
 const { toCamel, toSnake, transformMenuItem } = require('../lib/transform');
+const { requireAuth, requireRole } = require('../auth');
 
-// GET /api/menu - List all menu items (with filters)
+// GET /api/menu - List all menu items (public, no auth)
 router.get('/', async (req, res) => {
   try {
     const { category, available, search, popular, veg } = req.query;
@@ -30,7 +31,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/menu/:id - Get single item
+// GET /api/menu/:id - Get single item (public, no auth)
 router.get('/:id', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -47,8 +48,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/menu - Create menu item
-router.post('/', async (req, res) => {
+// POST /api/menu - Create menu item (admin/staff only)
+router.post('/', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     const body = { ...req.body };
 
@@ -116,8 +117,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT /api/menu/:id - Update menu item
-router.put('/:id', async (req, res) => {
+// PUT /api/menu/:id - Update menu item (admin/staff only)
+router.put('/:id', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     const body = { ...req.body };
 
@@ -157,8 +158,8 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// PATCH /api/menu/:id/availability - Toggle availability
-router.patch('/:id/availability', async (req, res) => {
+// PATCH /api/menu/:id/availability - Toggle availability (admin/staff only)
+router.patch('/:id/availability', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     const { data: existing, error: fetchErr } = await supabase
       .from('menu_items')
@@ -185,8 +186,8 @@ router.patch('/:id/availability', async (req, res) => {
   }
 });
 
-// PATCH /api/menu/:id/special - Toggle today's special
-router.patch('/:id/special', async (req, res) => {
+// PATCH /api/menu/:id/special - Toggle today's special (admin/staff only)
+router.patch('/:id/special', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     const { data: existing, error: fetchErr } = await supabase
       .from('menu_items')
@@ -214,8 +215,8 @@ router.patch('/:id/special', async (req, res) => {
   }
 });
 
-// PATCH /api/menu/:id/stock - Update stock quantity
-router.patch('/:id/stock', async (req, res) => {
+// PATCH /api/menu/:id/stock - Update stock quantity (admin/staff only)
+router.patch('/:id/stock', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     const { stockQty } = req.body;
 
@@ -237,37 +238,55 @@ router.patch('/:id/stock', async (req, res) => {
   }
 });
 
-// DELETE /api/menu/:id - Delete menu item
-router.delete('/:id', async (req, res) => {
+// DELETE /api/menu/:id - Delete menu item (admin/staff only)
+router.delete('/:id', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
+    const menuItemId = req.params.id;
+
     // Fetch item first to get category_id for count decrement
     const { data: item, error: fetchErr } = await supabase
       .from('menu_items')
-      .select('category_id')
-      .eq('id', req.params.id)
+      .select('id, category_id, name')
+      .eq('id', menuItemId)
       .single();
 
     if (fetchErr || !item) return res.status(404).json({ success: false, error: 'Item not found' });
 
+    // Clean up any inventory alerts for this item (best-effort)
+    try {
+      await supabase.from('inventory_alerts').delete().eq('menu_item_id', menuItemId);
+    } catch (e) {
+      console.error('Error deleting inventory_alerts for menu item', e);
+    }
+
     const { error } = await supabase
       .from('menu_items')
       .delete()
-      .eq('id', req.params.id);
+      .eq('id', menuItemId);
 
     if (error) throw error;
 
-    // Decrement category item count
+    // Decrement category item count (best-effort; don't fail delete if this breaks)
     if (item.category_id) {
-      const { data: cat } = await supabase
-        .from('categories')
-        .select('item_count')
-        .eq('id', item.category_id)
-        .single();
-      if (cat) {
-        await supabase
+      try {
+        const { data: cat, error: catErr } = await supabase
           .from('categories')
-          .update({ item_count: Math.max(0, (cat.item_count || 0) - 1) })
-          .eq('id', item.category_id);
+          .select('item_count')
+          .eq('id', item.category_id)
+          .single();
+
+        if (!catErr && cat) {
+          const { error: updateErr } = await supabase
+            .from('categories')
+            .update({ item_count: Math.max(0, (cat.item_count || 0) - 1) })
+            .eq('id', item.category_id);
+
+          if (updateErr) {
+            console.error('Failed to decrement category item_count', updateErr);
+          }
+        }
+      } catch (e) {
+        console.error('Error while decrementing category item_count', e);
       }
     }
 

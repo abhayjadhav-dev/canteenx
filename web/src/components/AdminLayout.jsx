@@ -1,10 +1,22 @@
 import React from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import { LayoutDashboard, ClipboardList, UtensilsCrossed, Package } from 'lucide-react';
+import { useOnline } from '../hooks/useOnline';
+import { useNotificationStore } from '../store/useNotificationStore';
 
 export default function AdminLayout() {
+  const online = useOnline();
+  const unreadNotifications = useNotificationStore(
+    (s) => s.notifications.filter((n) => n.scope === 'admin' && !n.read).length
+  );
+
   return (
     <div className="app-shell">
+      {!online && (
+        <div className="offline-banner offline-banner-admin">
+          Offline mode – dashboard data may be stale.
+        </div>
+      )}
       <div className="page-content">
         <Outlet />
       </div>
@@ -16,6 +28,7 @@ export default function AdminLayout() {
         <NavLink to="/admin/orders" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
           <span className="nav-icon"><ClipboardList size={22} /></span>
           <span>Orders</span>
+          {unreadNotifications > 0 && <span className="notif-badge">{unreadNotifications}</span>}
         </NavLink>
         <NavLink to="/admin/menu" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
           <span className="nav-icon"><UtensilsCrossed size={22} /></span>

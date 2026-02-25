@@ -24,12 +24,35 @@ export default function OrderTrackingPage() {
 
   useEffect(() => {
     poll();
-    const interval = setInterval(poll, 5000);
-    return () => clearInterval(interval);
+
+    // Subscribe to realtime order updates (scoped to current user)
+    const { subscribeToOrders, unsubscribeFromOrders } = useOrderStore.getState();
+    subscribeToOrders();
+
+    // Fallback polling (network issues / realtime not available)
+    const interval = setInterval(poll, 8000);
+
+    return () => {
+      clearInterval(interval);
+      unsubscribeFromOrders();
+    };
   }, [poll]);
 
   if (loading && !order) return <><PageHeader title="Order Tracking" backTo="/student/orders" /><Loading /></>;
-  if (!order) return <><PageHeader title="Order Tracking" backTo="/student/orders" /><div className="empty-state"><h3>Order not found</h3></div></>;
+  if (!loading && !order) {
+    return (
+      <>
+        <PageHeader title="Order Tracking" backTo="/student/orders" />
+        <div className="empty-state" style={{ paddingTop: 24 }}>
+          <h3>Order not found</h3>
+          <p>This order may have been removed or the link is invalid.</p>
+          <button className="btn btn-primary" onClick={() => navigate('/student/orders')}>
+            View my orders
+          </button>
+        </div>
+      </>
+    );
+  }
 
   const currentIdx = STATUSES.indexOf(order.status);
   const isCancelled = order.status === 'cancelled';

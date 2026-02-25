@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { requireAuth, requireRole } = require('../auth');
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '../../uploads');
@@ -37,7 +38,7 @@ const upload = multer({
 });
 
 // POST /api/upload — Upload a single image
-router.post('/', upload.single('image'), (req, res) => {
+router.post('/', requireAuth, requireRole('admin', 'staff'), upload.single('image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, error: 'No image file provided' });
   }

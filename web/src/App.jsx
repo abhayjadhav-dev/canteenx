@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/useAuthStore';
 import Toast from './components/Toast';
+import ErrorBoundary from './components/ErrorBoundary';
 
 import AuthPage from './pages/AuthPage';
 import LoginPage from './pages/LoginPage';
@@ -22,11 +23,16 @@ import OrdersPage from './pages/admin/OrdersPage';
 import MenuManagePage from './pages/admin/MenuManagePage';
 import MenuFormPage from './pages/admin/MenuFormPage';
 import InventoryPage from './pages/admin/InventoryPage';
+import StudentNotificationsPage from './pages/student/NotificationsPage';
+import AdminNotificationsPage from './pages/admin/NotificationsPage';
 
 function ProtectedRoute({ children, role }) {
   const user = useAuthStore((s) => s.user);
   if (!user) return <Navigate to="/auth" replace />;
-  if (role && user.role !== role) return <Navigate to={user.role === 'admin' ? '/admin' : '/student'} replace />;
+  // Treat 'staff' as having admin-style access for now
+  if (role && user.role !== role && !(role === 'admin' && user.role === 'staff')) {
+    return <Navigate to={user.role === 'admin' || user.role === 'staff' ? '/admin' : '/student'} replace />;
+  }
   return children;
 }
 
@@ -59,7 +65,7 @@ export default function App() {
   }, [location.pathname]);
 
   return (
-    <>
+    <ErrorBoundary>
     <Toast />
     <Routes>
       <Route path="/auth" element={<AuthPage />} />
@@ -75,6 +81,7 @@ export default function App() {
         <Route path="track/:id" element={<OrderTrackingPage />} />
         <Route path="orders" element={<OrderHistoryPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="notifications" element={<StudentNotificationsPage />} />
       </Route>
 
       {/* Admin routes */}
@@ -85,13 +92,14 @@ export default function App() {
         <Route path="menu/new" element={<MenuFormPage />} />
         <Route path="menu/edit/:id" element={<MenuFormPage />} />
         <Route path="inventory" element={<InventoryPage />} />
+        <Route path="notifications" element={<AdminNotificationsPage />} />
       </Route>
 
       {/* Default redirect */}
       <Route path="*" element={
-        <Navigate to={user ? (user.role === 'admin' ? '/admin' : '/student') : '/auth'} replace />
-      } />
+        <Navigate to={user ? (user.role === 'admin' || user.role === 'staff' ? '/admin' : '/student') : '/auth'} replace />
+      }       />
     </Routes>
-    </>
+    </ErrorBoundary>
   );
 }

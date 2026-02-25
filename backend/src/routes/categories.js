@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
 const { toCamel, toSnake } = require('../lib/transform');
+const { requireAuth, requireRole } = require('../auth');
 
 // GET /api/categories
 router.get('/', async (req, res) => {
@@ -37,7 +38,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/categories
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     const insert = toSnake(req.body);
     const { data, error } = await supabase
@@ -54,7 +55,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/categories/:id
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     const updates = toSnake(req.body);
     const { data, error } = await supabase
@@ -73,7 +74,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/categories/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     const { error } = await supabase
       .from('categories')

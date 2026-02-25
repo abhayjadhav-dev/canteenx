@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useOrderStore } from '../../store/useOrderStore';
 import Loading from '../../components/Loading';
-import { CheckCircle, Navigation, ArrowLeft } from 'lucide-react';
+import PageHeader from '../../components/PageHeader';
+import { CheckCircle, Navigation, ArrowLeft, AlertCircle } from 'lucide-react';
 
 export default function OrderConfirmPage() {
   const { id } = useParams();
@@ -13,7 +14,23 @@ export default function OrderConfirmPage() {
     fetchOrder(id);
   }, [id]);
 
-  if (loading || !order) return <div className="confirm-page"><Loading text="Loading order..." /></div>;
+  if (loading && !order) return <div className="confirm-page"><Loading text="Loading order..." /></div>;
+
+  if (!loading && !order) {
+    return (
+      <>
+        <PageHeader title="Order" backTo="/student/orders" />
+        <div className="empty-state" style={{ paddingTop: 48 }}>
+          <AlertCircle size={48} color="var(--text-muted)" />
+          <h3>Order not found</h3>
+          <p>This order may have been removed or the link is invalid.</p>
+          <button className="btn btn-primary" onClick={() => navigate('/student/orders')}>
+            View my orders
+          </button>
+        </div>
+      </>
+    );
+  }
 
   return (
     <div className="confirm-page">

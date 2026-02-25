@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { supabase } from '../lib/supabase';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -6,14 +7,25 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Inject JWT token from localStorage on every request
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('canteenx-token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// Inject Supabase access token on every request for backend auth/RBAC
+api.interceptors.request.use(
+  async (config) => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (token) {
+        // eslint-disable-next-line no-param-reassign
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch {
+      // Ignore — request will just be unauthenticated
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 // ── Upload ──
 export const uploadImage = (file) => {
@@ -29,7 +41,18 @@ export const getMenu = (params) => api.get('/menu', { params }).then((r) => r.da
 export const getMenuItem = (id) => api.get(`/menu/${id}`).then((r) => r.data);
 export const createMenuItem = (data) => api.post('/menu', data).then((r) => r.data);
 export const updateMenuItem = (id, data) => api.put(`/menu/${id}`, data).then((r) => r.data);
-export const deleteMenuItem = (id) => api.delete(`/menu/${id}`).then((r) => r.data);
+export const deleteMenuItem = async (id) => {
+  try {
+    const r = await api.delete(`/menu/${id}`);
+    return r.data;
+  } catch (err) {
+    // Treat 404 as "already deleted" so UI doesn't show a failure
+    if (err?.response?.status === 404) {
+      return { success: true, data: {} };
+    }
+    throw err;
+  }
+};
 export const toggleAvailability = (id, available) => api.patch(`/menu/${id}/availability`, { available }).then((r) => r.data);
 export const toggleTodaysSpecial = (id, isTodaysSpecial, specialLabel) => api.patch(`/menu/${id}/special`, { isTodaysSpecial, specialLabel }).then((r) => r.data);
 export const updateStock = (id, stockQty) => api.patch(`/menu/${id}/stock`, { stockQty }).then((r) => r.data);

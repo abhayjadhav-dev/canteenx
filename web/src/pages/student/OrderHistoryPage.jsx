@@ -26,8 +26,13 @@ export default function OrderHistoryPage() {
   useEffect(() => {
     refresh(false);
     if (!user) return;
+    const { subscribeToOrders, unsubscribeFromOrders } = useOrderStore.getState();
+    subscribeToOrders();
     const interval = setInterval(() => refresh(false), 6000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      unsubscribeFromOrders();
+    };
   }, [user, tab, refresh]);
 
   const active = orders.filter((o) => ['placed', 'confirmed', 'preparing', 'ready'].includes(o.status));

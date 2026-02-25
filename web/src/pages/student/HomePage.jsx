@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import Loading from '../../components/Loading';
 import { Search, X, Flame, BookOpen, Star, Frown, Sparkles, Clock, ArrowRight } from 'lucide-react';
 import usePullToRefresh from '../../hooks/usePullToRefresh';
+import { resolveImageUrl } from '../../lib/imageUrl';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -29,7 +30,15 @@ export default function HomePage() {
   useEffect(() => {
     refresh(false);
     const interval = setInterval(() => refresh(false), 15000);
-    return () => clearInterval(interval);
+
+    // Attach realtime menu subscription for live availability/stock
+    const { subscribeToMenu, unsubscribeFromMenu } = useMenuStore.getState();
+    subscribeToMenu();
+
+    return () => {
+      clearInterval(interval);
+      unsubscribeFromMenu();
+    };
   }, [refresh]);
 
   const filtered = useMemo(() => {
@@ -57,8 +66,17 @@ export default function HomePage() {
     <>
       {/* Greeting */}
       <div className="greeting">
-        <p className="greeting-sub">{greetingText()}, {user?.name?.split(' ')[0] || 'Student'} 👋</p>
-        <h1 className="greeting-title">What would you like<br />to eat today?</h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <p className="greeting-sub">{greetingText()}, {user?.name?.split(' ')[0] || 'Student'} 👋</p>
+            <h1 className="greeting-title">What would you like<br />to eat today?</h1>
+          </div>
+          <img
+            src="/canteenx-icon.png"
+            alt="CanteenX"
+            style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0 }}
+          />
+        </div>
       </div>
 
       {(pulling || refreshing) && (
@@ -100,9 +118,10 @@ export default function HomePage() {
                 <div className="special-card-img-wrap">
                   <img
                     className="special-card-img"
-                    src={item.imageUrl || 'https://placehold.co/280x160/f8f7f5/94a3b8?text=Special'}
+                    src={resolveImageUrl(item.imageUrl) || 'https://placehold.co/280x160/f8f7f5/94a3b8?text=Special'}
                     alt={item.name}
                     loading="lazy"
+                    onError={(e) => { e.currentTarget.src = 'https://placehold.co/280x160/f8f7f5/94a3b8?text=Special'; }}
                   />
                   {item.specialLabel && <span className="special-label">{item.specialLabel}</span>}
                   <span className="special-badge"><Sparkles size={12} /> Special</span>
@@ -171,9 +190,10 @@ const MenuCard = React.memo(function MenuCard({ item, onClick }) {
       <div className="menu-card-img-wrap">
         <img
           className="menu-card-img"
-          src={item.imageUrl || 'https://placehold.co/180x180/f8f7f5/94a3b8?text=No+Image'}
+          src={resolveImageUrl(item.imageUrl) || 'https://placehold.co/180x180/f8f7f5/94a3b8?text=No+Image'}
           alt={item.name}
           loading="lazy"
+          onError={(e) => { e.currentTarget.src = 'https://placehold.co/180x180/f8f7f5/94a3b8?text=No+Image'; }}
         />
         {item.isTodaysSpecial && <span className="card-special-dot"><Sparkles size={10} /></span>}
       </div>

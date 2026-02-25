@@ -34,8 +34,16 @@ export default function InventoryPage() {
 
   useEffect(() => {
     load(true);
+
+    // Realtime inventory + alerts subscription with polling fallback
+    const { subscribeToInventoryAlerts, unsubscribeFromInventoryAlerts } = useDashboardStore.getState();
+    subscribeToInventoryAlerts();
+
     const interval = setInterval(() => load(false), 12000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      unsubscribeFromInventoryAlerts();
+    };
   }, [load, showResolved]);
 
   const handleRestock = async (alert) => {
@@ -45,7 +53,6 @@ export default function InventoryPage() {
       await restockItem(alert.menuItem?._id || alert.menuItem, qty);
       toast.getState().success(`Restocked ${alert.itemName} with ${qty} units`);
       setRestockAmounts((r) => ({ ...r, [alert._id]: '' }));
-      load();
     } catch {
       toast.getState().error('Restock failed');
     }
@@ -55,7 +62,6 @@ export default function InventoryPage() {
     try {
       await resolveAlert(alertId);
       toast.getState().success('Alert resolved');
-      load();
     } catch {
       toast.getState().error('Failed to resolve');
     }

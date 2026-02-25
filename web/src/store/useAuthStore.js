@@ -93,6 +93,21 @@ export const useAuthStore = create(
         }
       },
 
+      updateNotificationPrefs: async (prefs) => {
+        const { user } = get();
+        if (!user) throw new Error('Not authenticated');
+        try {
+          const { error } = await supabase
+            .from('profiles')
+            .update({ notification_prefs: prefs, updated_at: new Date().toISOString() })
+            .eq('id', user._id);
+          if (error) throw error;
+          set({ user: { ...user, notificationPrefs: prefs } });
+        } catch (err) {
+          throw err;
+        }
+      },
+
       refreshUser: async () => {
         const { user } = get();
         if (!user) return;
@@ -155,6 +170,12 @@ export const useAuthStore = create(
 /* Map a Supabase profiles row to the shape the frontend expects */
 function mapProfile(row) {
   if (!row) return null;
+  const defaultPrefs = {
+    orderReady: true,
+    orderCancelled: true,
+    adminNewOrder: true,
+    adminLowInventory: true,
+  };
   return {
     _id: row.id,
     id: row.id,
@@ -165,6 +186,7 @@ function mapProfile(row) {
     studentId: row.student_id || '',
     avatarUrl: row.avatar_url || '',
     walletBalance: Number(row.wallet_balance) || 0,
+    notificationPrefs: row.notification_prefs || defaultPrefs,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -191,3 +213,4 @@ async function fetchProfile(id, fallbackEmail, fallbackName, fallbackRole) {
   if (createError) throw createError;
   return mapProfile(created);
 }
+

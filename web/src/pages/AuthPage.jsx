@@ -17,7 +17,7 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (!user) return;
-    navigate(user.role === 'admin' ? '/admin' : '/student', { replace: true });
+    navigate(user.role === 'admin' || user.role === 'staff' ? '/admin' : '/student', { replace: true });
   }, [user, navigate]);
 
   const handleSignUp = async (e) => {
@@ -44,9 +44,13 @@ export default function AuthPage() {
       }
       const user = await signInWithEmail({ email, password });
       toast.getState().success(`Welcome, ${user.name || user.email}!`);
-      navigate(user.role === 'admin' ? '/admin' : '/student', { replace: true });
+      navigate(user.role === 'admin' || user.role === 'staff' ? '/admin' : '/student', { replace: true });
     } catch (err) {
-      toast.getState().error(err.message || 'Failed to sign up');
+      const msg = err.message || 'Failed to sign up';
+      const friendly = /fetch|network|CSP|refused/i.test(msg)
+        ? 'Connection error. Check your internet and try again.'
+        : msg;
+      toast.getState().error(friendly);
     }
   };
 
@@ -59,9 +63,13 @@ export default function AuthPage() {
     try {
       const user = await signInWithEmail({ email, password });
       toast.getState().success(`Welcome back, ${user.name || user.email}!`);
-      navigate(user.role === 'admin' ? '/admin' : '/student', { replace: true });
+      navigate(user.role === 'admin' || user.role === 'staff' ? '/admin' : '/student', { replace: true });
     } catch (err) {
-      toast.getState().error(err.message || 'Failed to sign in');
+      const msg = err.message || 'Failed to sign in';
+      const friendly = /fetch|network|CSP|refused/i.test(msg)
+        ? 'Connection error. Check your internet and try again.'
+        : msg;
+      toast.getState().error(friendly);
     }
   };
 
@@ -71,7 +79,11 @@ export default function AuthPage() {
       await resendVerificationEmail(verificationEmail);
       toast.getState().success('Verification email resent');
     } catch (err) {
-      toast.getState().error(err.message || 'Failed to resend verification email');
+      const msg = err.message || 'Failed to resend verification email';
+      const friendly = /fetch|network|CSP|refused/i.test(msg)
+        ? 'Connection error. Check your internet and try again.'
+        : msg;
+      toast.getState().error(friendly);
     }
   };
 
@@ -79,10 +91,10 @@ export default function AuthPage() {
     <div className="login-page">
       <div className="login-header">
         <div className="login-logo">
-          <UtensilsCrossed size={48} color="var(--primary)" />
+          <img src="/canteenx-icon.png" alt="CanteenX logo" style={{ width: 64, height: 64, borderRadius: 16 }} />
         </div>
         <h1 className="login-title">CanteenX</h1>
-        <p className="login-subtitle">Smart Campus Canteen</p>
+        <p className="login-subtitle">Smart Campus Canteen · Built by ICYWALL</p>
       </div>
 
       <div className="login-card">

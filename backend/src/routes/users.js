@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
 const { toCamel } = require('../lib/transform');
+const { requireAuth, requireRole } = require('../auth');
 
-// GET /api/users - List users (profiles)
-router.get('/', async (req, res) => {
+// GET /api/users - List users (admin/staff only)
+router.get('/', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     const { role } = req.query;
 
@@ -20,8 +21,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/users/:id
-router.get('/:id', async (req, res) => {
+// GET /api/users/:id - User can see themselves; admin/staff can see anyone
+router.get('/:id', requireAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('profiles')
@@ -31,13 +32,17 @@ router.get('/:id', async (req, res) => {
 
     if (error) throw error;
     if (!data) return res.status(404).json({ success: false, error: 'User not found' });
+
+    if (req.user.role === 'student' && data.id !== req.user.id) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
     res.json({ success: true, data: toCamel(data) });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// POST /api/users/login - Login by email (for backward compat / test accounts)
+// POST /api/users/login - Deprecated: handled by Supabase Auth directly on frontend
 router.post('/login', async (req, res) => {
   try {
     const { email } = req.body;
@@ -70,6 +75,7 @@ router.post('/', async (req, res) => {
         student_id: req.body.studentId || '',
         avatar_url: req.body.avatarUrl || '',
         wallet_balance: req.body.walletBalance || 0,
+        notification_prefs: req.body.notificationPrefs || null,
       })
       .select()
       .single();
@@ -92,6 +98,7 @@ router.put('/:id', async (req, res) => {
     if (req.body.studentId !== undefined) updates.student_id = req.body.studentId;
     if (req.body.avatarUrl !== undefined) updates.avatar_url = req.body.avatarUrl;
     if (req.body.walletBalance !== undefined) updates.wallet_balance = req.body.walletBalance;
+    if (req.body.notificationPrefs !== undefined) updates.notification_prefs = req.body.notificationPrefs;
     updates.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase

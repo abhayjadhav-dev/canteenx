@@ -32,8 +32,17 @@ export default function DashboardPage() {
     <>
       <div className="dashboard-top">
         <div className="greeting">
-          <p className="greeting-sub">Welcome back</p>
-          <h1 className="greeting-title">{user?.name || 'Admin'}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <img
+              src="/canteenx-icon.png"
+              alt="CanteenX"
+              style={{ width: 36, height: 36, borderRadius: 10 }}
+            />
+            <div>
+              <p className="greeting-sub">Welcome back</p>
+              <h1 className="greeting-title">{user?.name || 'Admin'}</h1>
+            </div>
+          </div>
         </div>
         <button className="btn btn-sm btn-outline btn-signout" onClick={() => { logout(); navigate('/auth', { replace: true }); }}>
           <LogOut size={16} /> Sign Out

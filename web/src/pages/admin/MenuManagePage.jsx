@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMenuStore } from '../../store/useMenuStore';
 import { useToastStore } from '../../store/useToastStore';
 import { toggleAvailability, toggleTodaysSpecial, deleteMenuItem } from '../../services/api';
+import { resolveImageUrl } from '../../lib/imageUrl';
 import PageHeader from '../../components/PageHeader';
 import Loading from '../../components/Loading';
 import { Search, UtensilsCrossed, Pencil, Trash2, Plus, Sparkles } from 'lucide-react';
@@ -30,33 +31,67 @@ export default function MenuManagePage() {
   }, [items, selectedCat, deferredSearch]);
 
   const handleToggle = async (item) => {
+    // Optimistic UI: flip availability immediately
+    useMenuStore.setState((state) => ({
+      items: state.items.map((i) =>
+        i._id === item._id ? { ...i, available: !item.available } : i
+      ),
+    }));
+
     try {
       await toggleAvailability(item._id, !item.available);
-      fetchMenu();
       toast.getState().success(`${item.name} ${item.available ? 'disabled' : 'enabled'}`);
     } catch {
+      // Revert on failure
+      useMenuStore.setState((state) => ({
+        items: state.items.map((i) =>
+          i._id === item._id ? { ...i, available: item.available } : i
+        ),
+      }));
       toast.getState().error('Failed to toggle availability');
     }
   };
 
   const handleSpecialToggle = async (item) => {
+    const next = !item.isTodaysSpecial;
+    // Optimistic UI: toggle special flag immediately
+    useMenuStore.setState((state) => ({
+      items: state.items.map((i) =>
+        i._id === item._id ? { ...i, isTodaysSpecial: next } : i
+      ),
+    }));
+
     try {
-      await toggleTodaysSpecial(item._id, !item.isTodaysSpecial);
-      fetchMenu();
+      await toggleTodaysSpecial(item._id, next);
       toast.getState().success(`${item.name} ${item.isTodaysSpecial ? 'removed from' : 'marked as'} today's special`);
     } catch {
+      // Revert on failure
+      useMenuStore.setState((state) => ({
+        items: state.items.map((i) =>
+          i._id === item._id ? { ...i, isTodaysSpecial: item.isTodaysSpecial } : i
+        ),
+      }));
       toast.getState().error('Failed to toggle special');
     }
   };
 
   const handleDelete = async (item) => {
     if (!window.confirm(`Delete "${item.name}"?`)) return;
+
+    // Optimistic UI: remove item from list immediately
+    const prevItems = useMenuStore.getState().items;
+    useMenuStore.setState({
+      items: prevItems.filter((i) => i._id !== item._id),
+    });
+
     try {
       await deleteMenuItem(item._id);
-      fetchMenu();
-      toast.getState().success(`${item.name} deleted`);
-    } catch {
-      toast.getState().error('Failed to delete item');
+      toast.getState().success('Item deleted from menu');
+    } catch (err) {
+      // Revert on failure
+      useMenuStore.setState({ items: prevItems });
+      const message = err?.response?.data?.error || 'Failed to delete item';
+      toast.getState().error(message);
     }
   };
 
@@ -102,7 +137,12 @@ export default function MenuManagePage() {
       ) : (
         filtered.map((item) => (
           <div key={item._id} className="menu-manage-card">
-            <img className="menu-manage-img" src={item.imageUrl || 'https://placehold.co/112/f8f7f5/94a3b8?text=...'} alt={item.name} />
+            <img
+              className="menu-manage-img"
+              src={resolveImageUrl(item.imageUrl) || 'https://placehold.co/112/f8f7f5/94a3b8?text=...'}
+              alt={item.name}
+              onError={(e) => { e.currentTarget.src = 'https://placehold.co/112/f8f7f5/94a3b8?text=...'; }}
+            />
             <div className="menu-manage-info">
               <div className="menu-manage-name">
                 {item.name}

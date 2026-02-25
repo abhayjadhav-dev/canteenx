@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'manifest-student.webmanifest', 'manifest-admin.webmanifest'],
+      includeAssets: ['canteenx-icon.png', 'manifest-student.webmanifest', 'manifest-admin.webmanifest'],
       manifest: {
         name: 'CanteenX',
         short_name: 'CanteenX',
@@ -17,7 +17,8 @@ export default defineConfig({
         display: 'standalone',
         start_url: '/',
         icons: [
-          { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' },
+          { src: '/canteenx-icon.png', sizes: '192x192', type: 'image/png' },
+          { src: '/canteenx-icon.png', sizes: '512x512', type: 'image/png' },
         ],
       },
       workbox: {
@@ -26,7 +27,18 @@ export default defineConfig({
           {
             urlPattern: /^https?:\/\/.*\/api\/.*/i,
             handler: 'NetworkFirst',
-            options: { cacheName: 'api-cache', expiration: { maxEntries: 100, maxAgeSeconds: 300 } },
+            options: {
+              cacheName: 'api-cache',
+              expiration: { maxEntries: 200, maxAgeSeconds: 600 },
+            },
+          },
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/api/menu') || url.pathname.startsWith('/api/categories'),
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'menu-cache',
+              expiration: { maxEntries: 200, maxAgeSeconds: 86400 },
+            },
           },
           {
             urlPattern: /^https:\/\/images\.unsplash\.com\/.*/i,

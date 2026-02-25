@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useToastStore } from '../../store/useToastStore';
 import PageHeader from '../../components/PageHeader';
@@ -8,12 +8,8 @@ import usePullToRefresh from '../../hooks/usePullToRefresh';
 
 const FILTERS = [
   { label: 'All', value: '' },
-  { label: 'Placed', value: 'placed' },
-  { label: 'Confirmed', value: 'confirmed' },
-  { label: 'Preparing', value: 'preparing' },
+  { label: 'Pending', value: 'placed,confirmed,preparing' },
   { label: 'Ready', value: 'ready' },
-  { label: 'Collected', value: 'collected' },
-  { label: 'Cancelled', value: 'cancelled' },
 ];
 
 const NEXT_STATUS = {
@@ -36,11 +32,16 @@ export default function OrdersPage() {
   const [filter, setFilter] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(1);
+  const [collapseCompleted, setCollapseCompleted] = useState(true);
+  const [highlightIds, setHighlightIds] = useState([]);
+  const prevOrdersRef = useRef([]);
 
   const refresh = useCallback(async (showSpinner = true) => {
     const params = filter ? { status: filter } : {};
     if (showSpinner) setRefreshing(true);
-    await fetchOrders({ ...params, limit: 100 });
+    await fetchOrders({ ...params, limit: 50, page: 1 });
+    setPage(1);
     if (showSpinner) setRefreshing(false);
   }, [filter, fetchOrders]);
 
@@ -48,15 +49,58 @@ export default function OrdersPage() {
 
   useEffect(() => {
     refresh(true);
+
+    // Realtime subscription for admin/staff to see live order changes
+    const { subscribeToOrders, unsubscribeFromOrders } = useOrderStore.getState();
+    subscribeToOrders();
+
+    // Fallback polling (network issues / realtime not available)
+    const interval = setInterval(() => refresh(false), 10000);
+
+    return () => {
+      clearInterval(interval);
+      unsubscribeFromOrders();
+    };
   }, [refresh]);
 
-  // Auto-refresh
+  // Highlight new or newly-ready orders (no vibration to avoid distraction)
   useEffect(() => {
-    const interval = setInterval(() => {
-      refresh(false);
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [refresh]);
+    const prev = prevOrdersRef.current;
+    if (!prev.length) {
+      prevOrdersRef.current = orders;
+      return;
+    }
+
+    const prevMap = new Map(prev.map((o) => [o._id, o]));
+    const newlyImportant = [];
+
+    orders.forEach((o) => {
+      const prevOrder = prevMap.get(o._id);
+      if (!prevOrder) {
+        newlyImportant.push(o._id);
+      } else if (prevOrder.status !== 'ready' && o.status === 'ready') {
+        newlyImportant.push(o._id);
+      }
+    });
+
+    if (newlyImportant.length > 0) {
+      setHighlightIds((ids) => Array.from(new Set([...ids, ...newlyImportant])));
+      setTimeout(() => {
+        setHighlightIds((ids) => ids.filter((id) => !newlyImportant.includes(id)));
+      }, 3000);
+    }
+
+    prevOrdersRef.current = orders;
+  }, [orders]);
+
+  const handleLoadMore = async () => {
+    const nextPage = page + 1;
+    const params = filter ? { status: filter } : {};
+    setRefreshing(true);
+    await fetchOrders({ ...params, limit: 50, page: nextPage });
+    setPage(nextPage);
+    setRefreshing(false);
+  };
 
   const handleAdvance = async (orderId, currentStatus) => {
     const next = NEXT_STATUS[currentStatus];
@@ -117,51 +161,82 @@ export default function OrdersPage() {
           <p>Try a different filter</p>
         </div>
       ) : (
-        orders.map((order) => (
-          <div key={order._id} className="admin-order-card" onClick={() => setExpandedId(expandedId === order._id ? null : order._id)}>
-            <div className="admin-order-header">
-              <div>
-                <span className="order-number">{order.orderNumber}</span>
-                <span className="admin-order-token">Token #{order.tokenNumber}</span>
-              </div>
-              <span className={`status-badge ${order.status}`}>{order.status}</span>
-            </div>
-            <div className="admin-order-customer">
-              <User size={14} className="inline-icon" /> {order.customerName || order.user?.name || 'Student'}
-              <span className="admin-order-detail-sep">•</span>{order.orderType}
-              <span className="admin-order-detail-sep">•</span>{order.paymentMethod}
-            </div>
-            <div className="admin-order-items">
-              {order.items?.map((i) => `${i.quantity}x ${i.name}`).join(' · ')}
-            </div>
-            <div className="admin-order-bottom">
-              <span className="order-total">₹{order.total?.toFixed(2)}</span>
-              <span className="order-time">{formatTime(order.createdAt)}</span>
-            </div>
+        <>
+          {orders
+            .filter((order) => {
+              if (!collapseCompleted) return true;
+              return !['collected', 'cancelled'].includes(order.status);
+            })
+            .map((order) => (
+              <div
+                key={order._id}
+                className={`admin-order-card ${highlightIds.includes(order._id) ? 'highlight' : ''}`}
+                onClick={() => setExpandedId(expandedId === order._id ? null : order._id)}
+              >
+                <div className="admin-order-header">
+                  <div>
+                    <span className="order-number">{order.orderNumber}</span>
+                    <span className="admin-order-token">Token #{order.tokenNumber}</span>
+                  </div>
+                  <span className={`status-badge ${order.status}`}>{order.status}</span>
+                </div>
+                <div className="admin-order-customer">
+                  <User size={14} className="inline-icon" /> {order.customerName || order.user?.name || 'Student'}
+                  <span className="admin-order-detail-sep">•</span>{order.orderType}
+                  <span className="admin-order-detail-sep">•</span>{order.paymentMethod}
+                </div>
+                <div className="admin-order-items">
+                  {order.items?.map((i) => `${i.quantity}x ${i.name}`).join(' · ')}
+                </div>
+                <div className="admin-order-bottom">
+                  <span className="order-total">₹{order.total?.toFixed(2)}</span>
+                  <span className="order-time">{formatTime(order.createdAt)}</span>
+                </div>
 
-            {/* Expanded actions */}
-            {expandedId === order._id && (
-              <div className="admin-order-actions" onClick={(e) => e.stopPropagation()}>
-                {NEXT_STATUS[order.status] && (
-                  <button
-                    className="btn btn-primary btn-sm"
-                    onClick={() => handleAdvance(order._id, order.status)}
-                  >
-                    {NEXT_LABEL[order.status]}
-                  </button>
-                )}
-                {!['collected', 'cancelled'].includes(order.status) && (
-                  <button
-                    className="btn btn-danger btn-sm"
-                    onClick={() => handleCancel(order._id)}
-                  >
-                    Cancel
-                  </button>
+                {/* Expanded actions */}
+                {expandedId === order._id && (
+                  <div className="admin-order-actions" onClick={(e) => e.stopPropagation()}>
+                    {NEXT_STATUS[order.status] && (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => handleAdvance(order._id, order.status)}
+                      >
+                        {NEXT_LABEL[order.status]}
+                      </button>
+                    )}
+                    {!['collected', 'cancelled'].includes(order.status) && (
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleCancel(order._id)}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
+            ))}
+
+          <div style={{ marginTop: 12, marginBottom: 24 }}>
+            <label className="checkbox-label" style={{ marginBottom: 8 }}>
+              <input
+                type="checkbox"
+                checked={collapseCompleted}
+                onChange={(e) => setCollapseCompleted(e.target.checked)}
+              />
+              Hide collected / cancelled
+            </label>
+            {orders.length >= 50 && (
+              <button
+                className="btn btn-outline btn-sm"
+                onClick={handleLoadMore}
+                disabled={refreshing}
+              >
+                {refreshing ? 'Loading...' : 'Load more'}
+              </button>
             )}
           </div>
-        ))
+        </>
       )}
     </>
   );

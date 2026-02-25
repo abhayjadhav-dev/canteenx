@@ -11,6 +11,7 @@
     "dev:backend": "cd backend && npm run dev",
     "dev:web": "cd web && npm run dev",
     "seed": "cd backend && npm run seed",
-    "render:build": "npm run install:all && npm run build:web"
+    "render:build": "npm run install:all && npm run build:web",
+    "verify": "cd backend && node src/verify.js"
   }
 }

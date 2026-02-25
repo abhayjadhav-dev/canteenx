@@ -1,11 +1,17 @@
 import React from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useCartStore } from '../store/useCartStore';
+import { useNotificationStore } from '../store/useNotificationStore';
 import { Home, ClipboardList, ShoppingCart, User } from 'lucide-react';
+import { useOnline } from '../hooks/useOnline';
 
 export default function StudentLayout() {
   const location = useLocation();
   const itemCount = useCartStore((s) => s.getItemCount());
+  const online = useOnline();
+  const unreadNotifications = useNotificationStore(
+    (s) => s.notifications.filter((n) => n.scope === 'student' && !n.read).length
+  );
 
   // Hide bottom nav on certain pages
   const hideBottomNav = ['/student/checkout', '/student/order-confirm'].some((p) =>
@@ -14,6 +20,11 @@ export default function StudentLayout() {
 
   return (
     <div className="app-shell">
+      {!online && (
+        <div className="offline-banner">
+          You&apos;re offline. Some actions will be unavailable.
+        </div>
+      )}
       <div className="page-content" style={hideBottomNav ? { paddingBottom: 24 } : undefined}>
         <Outlet />
       </div>
@@ -26,6 +37,7 @@ export default function StudentLayout() {
           <NavLink to="/student/orders" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon"><ClipboardList size={22} /></span>
             <span>Orders</span>
+            {unreadNotifications > 0 && <span className="notif-badge">{unreadNotifications}</span>}
           </NavLink>
           <NavLink to="/student/cart" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon"><ShoppingCart size={22} /></span>

@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
 const { toCamel, transformMenuItem } = require('../lib/transform');
+const { requireAuth, requireRole } = require('../auth');
 
-// GET /api/inventory/alerts - List all alerts
-router.get('/alerts', async (req, res) => {
+// GET /api/inventory/alerts - List all alerts (admin/staff only)
+router.get('/alerts', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     const { severity, resolved } = req.query;
 
@@ -36,8 +37,8 @@ router.get('/alerts', async (req, res) => {
   }
 });
 
-// GET /api/inventory/summary - Inventory summary stats
-router.get('/summary', async (req, res) => {
+// GET /api/inventory/summary - Inventory summary stats (admin/staff only)
+router.get('/summary', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     // Count total menu items
     const { count: totalItems } = await supabase
@@ -103,8 +104,8 @@ router.get('/summary', async (req, res) => {
   }
 });
 
-// PATCH /api/inventory/restock/:itemId - Restock an item
-router.patch('/restock/:itemId', async (req, res) => {
+// PATCH /api/inventory/restock/:itemId - Restock an item (admin/staff only)
+router.patch('/restock/:itemId', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     const { quantity } = req.body;
     const qty = Number(quantity);
@@ -171,8 +172,8 @@ router.patch('/restock/:itemId', async (req, res) => {
   }
 });
 
-// PATCH /api/inventory/alerts/:id/resolve - Resolve alert
-router.patch('/alerts/:id/resolve', async (req, res) => {
+// PATCH /api/inventory/alerts/:id/resolve - Resolve alert (admin/staff only)
+router.patch('/alerts/:id/resolve', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('inventory_alerts')

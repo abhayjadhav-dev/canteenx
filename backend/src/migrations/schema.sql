@@ -9,7 +9,7 @@ create table if not exists profiles (
   name text not null default '',
   email text not null default '',
   phone text default '',
-  role text default 'student' check (role in ('student', 'admin')),
+  role text default 'student' check (role in ('student', 'admin', 'staff')),
   student_id text default '',
   avatar_url text default '',
   wallet_balance numeric(10,2) default 0,

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useMenuStore } from '../../store/useMenuStore';
 import { useCartStore } from '../../store/useCartStore';
 import { useToastStore } from '../../store/useToastStore';
+import { resolveImageUrl } from '../../lib/imageUrl';
 import PageHeader from '../../components/PageHeader';
 import Loading from '../../components/Loading';
 import { Clock, Flame, Star, Package, Check, Sparkles, ShoppingCart, Minus, Plus } from 'lucide-react';
@@ -23,6 +24,12 @@ export default function ItemDetailPage() {
     return () => clearCurrentItem();
   }, [id]);
 
+  useEffect(() => {
+    if (!item) return;
+    const max = Math.max(1, item.stockQty ?? 99);
+    if (quantity > max) setQuantity(max);
+  }, [item, item?.stockQty, quantity]);
+
   const toggleAddon = (addon) => {
     setSelectedAddons((prev) =>
       prev.find((a) => a.name === addon.name)
@@ -32,16 +39,18 @@ export default function ItemDetailPage() {
   };
 
   const addonTotal = selectedAddons.reduce((sum, a) => sum + a.price, 0);
+  const maxQty = item ? Math.max(1, (item.stockQty ?? 99)) : 1;
   const totalPrice = item ? (item.price + addonTotal) * quantity : 0;
 
   const handleAddToCart = () => {
     if (!item) return;
+    const qty = Math.min(quantity, maxQty);
     addItem({
       menuItemId: item._id,
       name: item.name,
       price: item.price,
       imageUrl: item.imageUrl,
-      quantity,
+      quantity: qty,
       addons: selectedAddons,
       specialInstructions: instructions,
     });
@@ -56,7 +65,12 @@ export default function ItemDetailPage() {
       <PageHeader title="" backTo="/student" />
 
       <div className="item-hero-wrap">
-        <img className="item-hero" src={item.imageUrl || 'https://placehold.co/400x250/f8f7f5/94a3b8?text=No+Image'} alt={item.name} />
+        <img
+          className="item-hero"
+          src={resolveImageUrl(item.imageUrl) || 'https://placehold.co/400x250/f8f7f5/94a3b8?text=No+Image'}
+          alt={item.name}
+          onError={(e) => { e.currentTarget.src = 'https://placehold.co/400x250/f8f7f5/94a3b8?text=No+Image'; }}
+        />
         {item.isTodaysSpecial && (
           <span className="item-hero-special"><Sparkles size={14} /> Today's Special</span>
         )}
@@ -119,7 +133,7 @@ export default function ItemDetailPage() {
       <div className="qty-picker">
         <button className="qty-btn" onClick={() => setQuantity(Math.max(1, quantity - 1))} disabled={quantity <= 1}><Minus size={18} /></button>
         <span className="qty-value">{quantity}</span>
-        <button className="qty-btn" onClick={() => setQuantity(quantity + 1)}><Plus size={18} /></button>
+        <button className="qty-btn" onClick={() => setQuantity(Math.min(maxQty, quantity + 1))} disabled={quantity >= maxQty}><Plus size={18} /></button>
       </div>
 
       {/* Add to cart */}

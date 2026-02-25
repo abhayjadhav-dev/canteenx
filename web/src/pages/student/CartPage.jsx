@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../../store/useCartStore';
+import { resolveImageUrl } from '../../lib/imageUrl';
 import PageHeader from '../../components/PageHeader';
 import { ShoppingCart, Trash2, FileText, ArrowRight, ShoppingBag } from 'lucide-react';
 
@@ -34,8 +35,9 @@ export default function CartPage() {
             <div key={index} className="cart-item">
               <img
                 className="cart-item-img"
-                src={item.imageUrl || 'https://placehold.co/128/f8f7f5/94a3b8?text=...'}
+                src={resolveImageUrl(item.imageUrl) || 'https://placehold.co/128/f8f7f5/94a3b8?text=...'}
                 alt={item.name}
+                onError={(e) => { e.currentTarget.src = 'https://placehold.co/128/f8f7f5/94a3b8?text=...'; }}
               />
               <div className="cart-item-info">
                 <div className="cart-item-name">{item.name}</div>

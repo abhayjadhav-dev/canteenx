@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 
 const menuRoutes = require('./routes/menu');
@@ -14,13 +16,52 @@ const uploadRoutes = require('./routes/upload');
 
 const app = express();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(morgan('dev'));
+// Security & middleware
+const cspDirectives = helmet.contentSecurityPolicy.getDefaultDirectives();
+// Allow Supabase Auth, REST, Realtime (use exact URL; some browsers reject *.domain in connect-src)
+const supabaseUrl = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const supabaseWss = supabaseUrl ? supabaseUrl.replace(/^https:\/\//, 'wss://') : '';
+cspDirectives['connect-src'] = [
+  "'self'",
+  ...(supabaseUrl ? [supabaseUrl, supabaseWss] : []),
+  'https://*.supabase.co',
+  'wss://*.supabase.co',
+  // Allow calling external HTTPS/WSS APIs (e.g. Render URL) from the frontend
+  'https:',
+  'wss:',
+];
+cspDirectives['frame-src'] = ["'self'", ...(supabaseUrl ? [supabaseUrl] : []), 'https://*.supabase.co'];
+// Allow Unsplash images and data URLs
+cspDirectives['img-src'] = ["'self'", 'data:', 'https://images.unsplash.com', 'https://placehold.co'];
 
-// Serve uploaded images
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: cspDirectives,
+    },
+  })
+);
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN || '*',
+  })
+);
+app.use(express.json({ limit: '1mb' }));
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
+// Basic rate limiting on API routes
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api', apiLimiter);
+
+// Serve uploaded images (both /uploads and /api/uploads for compatibility)
+const uploadsPath = path.join(__dirname, '../uploads');
+app.use('/uploads', express.static(uploadsPath));
+app.use('/api/uploads', express.static(uploadsPath));
 
 // Routes
 app.use('/api/menu', menuRoutes);
